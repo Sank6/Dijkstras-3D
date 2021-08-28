@@ -7,9 +7,9 @@
   >
     <Camera ref="camera" :position="{ z: 10 }" />
     <Scene ref="scene">
-      <AmbientLight color="#ffffff" intensity="0.5" />
-      <InstancedMesh ref="imesh" count="500">
-        <SphereGeometry radius="0.05" />
+      <AmbientLight color="#ffffff" :intensity="0.5" />
+      <InstancedMesh ref="imesh" :count="100">
+        <SphereGeometry :radius="0.05" />
         <PhongMaterial />
       </InstancedMesh>
     </Scene>
