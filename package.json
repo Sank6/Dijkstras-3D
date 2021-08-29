@@ -7,11 +7,13 @@
     "serve": "vite preview"
   },
   "dependencies": {
+    "dat.gui": "^0.7.7",
     "three": "^0.127.0",
     "troisjs": "^0.3.1",
     "vue": "^3.0.11"
   },
   "devDependencies": {
+    "@types/dat.gui": "^0.7.7",
     "@types/three": "^0.127.1",
     "@vitejs/plugin-vue": "^1.2.2",
     "@vue/compiler-sfc": "^3.0.11",
