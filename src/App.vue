@@ -4,19 +4,38 @@
     antialias
     :orbit-ctrl="{ enableDamping: true }"
     resize="window"
+    shadow
   >
-    <Camera ref="camera" :position="{ z: -20 }" />
+    <Camera
+      ref="camera"
+      :position="{ y: (options.spacing * options.size), z: -(options.spacing * options.size * 1.75) }"
+      :far="10000"
+    />
     <Scene ref="scene">
       <AmbientLight color="#ffffff" :intensity="0.5" />
-      <InstancedMesh ref="imesh" :count="max">
-        <SphereGeometry :radius="0.05" />
+      <PointLight color="#ffffff" :intensity="1" :position="{ y: options.spacing * options.size * 1.5 }" cast-shadow :shadow-map-size="{ width: options.spacing * options.size * 2.5, height: options.spacing * options.size * 2.5 }" :shadow-camera="{far: 10000}" />
+      <RectAreaLight color="#42f5ef" :position="{ x: 0, y: options.spacing, z: (options.spacing * options.size) }" v-bind="rectLightsProps" />
+      <RectAreaLight color="#42f5ef" :position="{ x: (options.spacing * options.size), y: options.spacing, z: 0 }" v-bind="rectLightsProps" />
+      
+      <Plane receive-shadow :width="options.spacing * options.size * 2.5" :height="options.spacing * options.size * 2.5" :rotation="{ x: -Math.PI / 2 }" :position="{ y: -options.spacing * options.size * 0.6 }">
+        <StandardMaterial :props="{ roughness: 0.1, metalness: 0.9 }"  >
+          <Texture :props="texturesProps" src="/textures/Metal_Panels_009_basecolor.jpg" />
+          <Texture :props="texturesProps" src="/textures/Metal_Panels_009_normal.jpg" name="normalMap" />
+          <Texture :props="texturesProps" src="/textures/Metal_Panels_009_roughness.jpg" name="roughnessMap" />
+          <Texture :props="texturesProps" src="/textures/Metal_Panels_009_ambientOcclusion.jpg" name="aoMap" />
+        </StandardMaterial>
+      </Plane>
+
+      <InstancedMesh ref="imesh" :count="max" cast-shadow>
+        <SphereGeometry :radius="options.size" cast-shadow />
         <PhongMaterial />
       </InstancedMesh>
     </Scene>
-
+    
     <EffectComposer>
       <RenderPass />
-      <UnrealBloomPass :strength="0.8" :exposure="1" />
+      <UnrealBloomPass :strength="0.03" />
+      <FXAAPass />
     </EffectComposer>
   </Renderer>
 </template>
@@ -31,11 +50,13 @@ import {
   LineBasicMaterial,
   BufferGeometry,
   Matrix4,
+  RepeatWrapping,
 } from "three";
 import * as dat from "dat.gui";
 import {
   Camera,
   PointLight,
+  RectAreaLight,
   Renderer,
   RendererPublicInterface,
   Scene,
@@ -43,34 +64,41 @@ import {
   SphereGeometry,
   PhongMaterial,
   AmbientLight,
+  DodecahedronGeometry,
+  Plane,
+  StandardMaterial,
+  Texture,
+  EffectComposer,
+  RenderPass,
+  UnrealBloomPass,
+  FXAAPass,
 } from "troisjs";
 
 export default defineComponent({
   components: {
     Camera,
     PointLight,
+    RectAreaLight,
     Renderer,
     Scene,
     InstancedMesh,
     SphereGeometry,
     PhongMaterial,
     AmbientLight,
+    DodecahedronGeometry,
+    Plane,
+    StandardMaterial,
+    Texture,
+    EffectComposer,
+    RenderPass,
+    UnrealBloomPass,
+    FXAAPass,
   },
   setup() {
     let max = 500;
-    return {
-      coords: [] as number[][],
-      started: false,
-      imesh: null as typeof InstancedMesh.mesh | null,
-      renderer: null as RendererPublicInterface | null,
-      scene: null as typeof Scene.scene | null,
-      minDistances: new Array(max).fill(Infinity),
-      minPath: new Array(max).fill([]) as number[][],
-      visitedNodes: [] as number[],
-      lines: [] as any[],
-      max,
-      pauseTime: 100,
-      options: {
+    let options = {
+        size: 5,
+        spacing: 150,
         max: parseInt(localStorage.getItem("max") as string) || max,
         maxDist: parseInt(localStorage.getItem("maxDist") as string) || 3,
         showNeighbourLines:
@@ -86,12 +114,38 @@ export default defineComponent({
           localStorage.getItem("neighbourLineColor") || "#1f1f1f",
         speed: parseInt(localStorage.getItem("speed") as string) || 6,
         loop: JSON.parse(localStorage.getItem("loop") as string) !== false,
+    }
+    return {
+      coords: [] as number[][],
+      started: false,
+      imesh: null as typeof InstancedMesh.mesh | null,
+      renderer: null as RendererPublicInterface | null,
+      scene: null as typeof Scene.scene | null,
+      minDistances: new Array(max).fill(Infinity),
+      minPath: new Array(max).fill([]) as number[][],
+      visitedNodes: [] as number[],
+      lines: [] as any[],
+      max,
+      pauseTime: 100,
+      options,
+      rectLightsProps: {
+        lookAt: {y: options.spacing, z: 0},
+        intensity: 0.2,
+        width: options.size*options.spacing,
+        height: options.size*options.spacing,
+        helper: true,
+      },
+      texturesProps: {
+        repeat: { x: 2, y: 2 },
+        wrapS: RepeatWrapping,
+        wrapT: RepeatWrapping,
       },
     };
   },
   mounted() {
     this.imesh = (this.$refs.imesh as typeof InstancedMesh).mesh;
     this.renderer = this.$refs.renderer as RendererPublicInterface;
+    this.renderer.renderer.setClearColor(new Color(0x050505));
     this.scene = this.$refs.scene as typeof Scene.scene;
 
     this.renderer.onBeforeRender(this.animate);
@@ -129,7 +183,7 @@ export default defineComponent({
         .name("Nodes")
         .onChange(this.restart);
       options
-        .add(this.options, "maxDist", 1, 5, 1)
+        .add(this.options, "maxDist", 1, 10, 1)
         .name("Reach")
         .onChange(this.restart);
       options
@@ -162,10 +216,10 @@ export default defineComponent({
         .addColor(this.options, "neighbourLineColor")
         .name("Neighbours Line")
         .onChange(this.updateColours);
-      
-    let controls = gui.addFolder("Controls");
-    controls.add(this, 'restart').name("Restart")
-    controls.add(this, 'reset').name("Reset Options")
+
+      let controls = gui.addFolder("Controls");
+      controls.add(this, "restart").name("Restart");
+      controls.add(this, "reset").name("Reset Options");
       this.updateSpeed();
     },
     animate() {
@@ -238,7 +292,15 @@ export default defineComponent({
       const neighbours: Neighbours = {};
       for (let i = 0; i < this.coords.length; i++) {
         const dist = this.distance(this.coords[node], this.coords[i]);
-        if (i !== node && dist < this.options.maxDist) neighbours[i] = dist;
+        if (
+          i !== node &&
+          dist <
+            this.options.maxDist *
+              0.1 *
+              this.options.spacing *
+              this.options.size
+        )
+          neighbours[i] = dist;
       }
       return neighbours;
     },
@@ -357,7 +419,12 @@ export default defineComponent({
       localStorage.setItem("loop", this.options.loop.toString());
     },
     rand() {
-      return parseFloat((Math.random() * 10 - 5).toFixed(5));
+      return parseFloat(
+        (
+          Math.random() * this.options.spacing * this.options.size -
+          (this.options.spacing * this.options.size) / 2
+        ).toFixed(5)
+      );
     },
     async pause(time: number = NaN) {
       await new Promise((resolve) =>
