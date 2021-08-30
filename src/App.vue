@@ -269,6 +269,8 @@ export default defineComponent({
     clearPath() {
       this.lines.forEach((line) => {
         this.scene?.remove(line);
+        line.geometry.dispose();
+        line.material.dispose();
       });
       this.lines = [];
     },
